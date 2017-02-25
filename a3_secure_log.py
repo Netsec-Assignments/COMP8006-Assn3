@@ -7,6 +7,7 @@ from sys import platform
 
 MOD_TIME = 0				# Keep track of last modification of the /var/log/secure file
 HOME = os.environ['HOME'] 	# path to home directory
+PATH = "/var/log/auth.log"
 
 def insert_into_file(data):
     exit()
@@ -37,17 +38,17 @@ def check_for_failed_password(list_of_read_lines):
 
 def scan_var_log():
     global MOD_TIME
-    new_MOD_TIME = os.path.getMOD_TIME("/var/log/secure")
+    new_MOD_TIME = os.path.getmtime(PATH)
     if MOD_TIME == new_MOD_TIME:
         return
     else:
         list_of_read_lines = []
         try:
-            with open('/var/log/secure') as f:
+            with open(PATH) as f:
                 list_of_read_lines = f.readlines()
                 check_for_failed_password(list_of_read_lines)
         except IOError as e:
-            print "You do not have enough permissions to access the file.\n" 
+            print("You do not have enough permissions to access the file.\n") 
             sys.exit(1)
 
         MOD_TIME = new_MOD_TIME
@@ -57,16 +58,18 @@ def main():
     sys.exit()
 
 if __name__ == "__main__":
-    print platform
+    print(platform)
     if (platform == "linux"):
         if os.path.exists("/var/log/secure"):
+            PATH = "/var/log/secure"
             sys.exit(main())
         else:
-            print '/var/log/secure does not exist. Make sure the file exists and try again later.'
+            print('/var/log/secure does not exist. Make sure the file exists and try again later.')
             sys.exit(1)
     else:
         if os.path.exists("/var/log/auth.log"):
+            PATH = "/var/log/auth.log"
             sys.exit(main())
         else:
-            print '/var/log/secure does not exist. Make sure the file exists and try again later.'
+            print('/var/log/auth.log does not exist. Make sure the file exists and try again later.')
             sys.exit(1)

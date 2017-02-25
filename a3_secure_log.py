@@ -28,7 +28,7 @@ def record_operations(date, msg):
 def check_for_failed_password(list_of_read_lines):
     l = list_of_read_lines
     for i in range(len(l)):
-        if ' '.join(l[i].split(' ')[3:6]) == 'Failed password for':
+        if ' '.join(l[i].split(' ')[5:8]) == 'Failed password for':
             x = l[i].split('T')  
             date = x[0].split('-')
             message = l[i].split(' ')
@@ -59,7 +59,7 @@ def main():
 
 if __name__ == "__main__":
     print(platform)
-    if (platform == "linux"):
+    if (platform == "linux2"):
         if os.path.exists("/var/log/secure"):
             PATH = "/var/log/secure"
             sys.exit(main())

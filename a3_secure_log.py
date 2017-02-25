@@ -13,15 +13,15 @@ def insert_into_file(data):
     exit()
 
 def record_operations(date, msg):
-    time_of_attempt = msg[0].split('T')[1].split(':')
-    time_of_attempt[2] = int(float(time_of_attempt[2].split('+')[0]))
+    time_of_attempt = date[0].split(' datacomm')
+    time_of_attempt2 = time_of_attempt[0].split(' ')[2].split(':')
 
-    year, month, day = date[0], date[1], date[2]
-    hour, minute, second = time_of_attempt[0], time_of_attempt[1],\
-                           time_of_attempt[2]
-    user, ip = msg[6], msg[8]
-    data = {"year" : int(year), "month" : int(month), "day" : int(day), "ip" :
-            ip, "user" : user, "hour" : int(hour), "minute" : int(minute),
+    month, day = msg[0], msg[1]
+    hour, minute, second = time_of_attempt2[0], time_of_attempt2[1],\
+                           time_of_attempt2[2]
+    user, ip, port, connection = msg[8], msg[10], msg[12], msg[13]
+    data = {"month" : month, "day" : int(day), "connection": connection, 
+            "ip" : ip, "user" : user, "port" : port, "hour" : int(hour), "minute" : int(minute),
             "second" : int(second)}
     insert_into_file(data)
 

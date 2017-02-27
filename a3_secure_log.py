@@ -1,3 +1,22 @@
+#/*********************************************************************************************
+#Name:	a3_secure_log.py
+#
+#       Developer:	Mat Siwoski/Shane Spoor
+#
+#       Created On: 2017-02-26
+#
+#       Description:
+#       This is a password attempt monitoring application. This will read the /var/log/secure 
+#       or the /var/log/auth.log file for password attempts. If there is are failed password
+#       attempts, the application will log those attempts. If the amount of attempts exceeds
+#       the amount as specified by the user, the ip address will be blocked with a firewall
+#       rule.
+#
+#    Revisions:
+#    (none)
+#
+###################################################################################################
+
 #!/usr/bin/env python3
 import os
 import subprocess
@@ -17,6 +36,29 @@ DATE_FMT = "%b %d %H:%M:%S"                    # Fedora 24 sshd date format; not
 
 failed_info = {}   # A dictionary of dictionaries of the form {[ip address string]: {"attempt_count": [number of attempts], "last_attempt":[timestamp]}, [ip address string]...}
 
+#########################################################################################################
+# FUNCTION
+#
+#   Name:		execute
+#
+#    Prototype:	def execute(cmd)
+#
+#    Developer:	Mat Siwoski/Shane Spoor
+#
+#    Created On: 2017-02-26
+#
+#    Parameters:
+#    cmd - cmd from the User
+#
+#    Return Values:
+#	
+#    Description:
+#    This will open a process to read the ines as the file gets modified.
+#
+#    Revisions:
+#	(none)
+#    
+#########################################################################################################
 def execute(cmd):
     popen = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
     for stdout_line in iter(popen.stdout.readline, ""):
@@ -26,6 +68,31 @@ def execute(cmd):
     if return_code:
         raise subprocess.CalledProcessError(return_code, cmd)
 
+
+#########################################################################################################
+# FUNCTION
+#
+#   Name:		record_operations
+#
+#    Prototype:	def record_operations(date, ip)
+#
+#    Developer:	Mat Siwoski/Shane Spoor
+#
+#    Created On: 2017-02-26
+#
+#    Parameters:
+#    date - date of the failed password
+#    ip - Ip address of the failed password
+#
+#    Return Values:
+#	
+#    Description:
+#    This will read the date of the failed password attempt and will compare with the previous attempt.
+#
+#    Revisions:
+#	(none)
+#    
+#########################################################################################################
 def record_operations(date, ip):
     print(date)
     epoch_time = int(date.timestamp())
@@ -47,6 +114,29 @@ def record_operations(date, ip):
     #        "ip" : ip, "user" : user, "port" : port, "hour" : date.hour, "minute" : date.minute,
     #        "second" : date.second}
 
+#########################################################################################################
+# FUNCTION
+#
+#   Name:		scan_var_log
+#
+#    Prototype:	def scan_var_log()
+#
+#    Developer:	Mat Siwoski/Shane Spoor
+#
+#    Created On: 2017-02-26
+#
+#    Parameters:
+#
+#    Return Values:
+#	
+#    Description:
+#    This will scan the secure file and compare for any "failed password for" attempts. if found, it will
+#    send the ip/date to the record_operations function.
+#
+#    Revisions:
+#	(none)
+#    
+#########################################################################################################
 def scan_var_log():
     # Fedora /var/log/secure format: Feb 23 21:32:05 localhost sshd[5755]: Failed password for shane from 192.168.1.67 port 51295 ssh2
     # Ubuntu /var/log/auth.log format?
@@ -100,10 +190,35 @@ def scan_var_log():
             json.dump(failed_info, f)
             f.flush()
 
+
+#########################################################################################################
+# FUNCTION
+#
+#   Name:		main
+#
+#    Prototype:	def main()
+#
+#    Developer:	Mat Siwoski/Shane Spoor
+#
+#    Created On: 2017-02-26
+#
+#    Parameters:
+#
+#    Return Values:
+#	
+#    Description:
+#    This will start the application.
+#
+#    Revisions:
+#	(none)
+#    
+#########################################################################################################
 def main():
     scan_var_log()
     sys.exit()
 
+
+#test for which version of the os is being used.
 if __name__ == "__main__":
 
     if not os.path.exists(APP_FILES_PATH):

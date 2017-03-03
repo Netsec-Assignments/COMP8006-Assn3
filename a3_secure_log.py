@@ -16,6 +16,7 @@ FAILED_PATH = APP_FILES_PATH + "/blocked.json" # Stores information about failed
 DATE_FMT = "%b %d %H:%M:%S"                    # Fedora 24 sshd date format; not sure about Ubuntu or Fedora 25
 
 failed_info = {}   # A dictionary of dictionaries of the form {[ip address string]: {"attempt_count": [number of attempts], "last_attempt":[timestamp]}, [ip address string]...}
+block_threshold = 0
 
 def execute(cmd):
     popen = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
@@ -27,7 +28,6 @@ def execute(cmd):
         raise subprocess.CalledProcessError(return_code, cmd)
 
 def record_operations(date, ip):
-    print(date)
     epoch_time = int(date.timestamp())
     if ip in failed_info:
         if failed_info[ip]["last_attempt"] < epoch_time:
@@ -35,17 +35,6 @@ def record_operations(date, ip):
             failed_info[ip]["attempt_count"] += 1
     else:
         failed_info[ip] = {"last_attempt":epoch_time, "attempt_count":1}
-
-    #time_of_attempt = date[0].split(' datacomm')
-    #time_of_attempt2 = time_of_attempt[0].split(' ')[2].split(':')
-
-    #month, day = msg[0], msg[1]
-    #hour, minute, second = time_of_attempt2[0], time_of_attempt2[1],\
-    #                       time_of_attempt2[2]
-    #user, ip, port, connection = msg[8], msg[10], msg[12], msg[13]
-    #data = {"month" : date.month, "day" : date.day, "connection": connection, 
-    #        "ip" : ip, "user" : user, "port" : port, "hour" : date.hour, "minute" : date.minute,
-    #        "second" : date.second}
 
 def scan_var_log():
     # Fedora /var/log/secure format: Feb 23 21:32:05 localhost sshd[5755]: Failed password for shane from 192.168.1.67 port 51295 ssh2
@@ -56,43 +45,39 @@ def scan_var_log():
         for line in execute(["tail", "-f", LOG_PATH]):
             index = line.find('Failed password for')
             if index != -1:
-                print(line)
-
-                # TODO: Set DATE_FMT for both distros
-                if DATE_FMT != None:
-                    # This is a complete hack, but strptime doesn't allow converting just part of a string.
-                    # Basically, this tries to convert a string that WILL fail and raise an exception so that
-                    # we can cut out the unconverted data.
-                    #
-                    # The docs for the C implementation of strptime, which this wraps, state that "The return
-                    # value of the function is a pointer to the first character not processed in this function
-                    # call." I.e., it is NOT an error in the C function to pass a string with characters after
-                    # the date. Why it's an error in the Python implementation, and why there's no alternative
-                    # API with the correct behaviour (or more accurately, why the one that fails on unconverted
-                    # input itself isn't the alternative API), is beyond me.
-                    try:
-                        date = datetime.strptime(line, DATE_FMT)
-                    except ValueError as v:
-                        unconverted_msg = "unconverted data remains: "
-                        exception_msg = str(v)
-                        start = exception_msg.find(unconverted_msg)
-                        if start != -1:
-                            date_end = len(line) - (len(exception_msg) - len(unconverted_msg))
-                            date = datetime.strptime(line[:date_end], DATE_FMT)
-                            date = date.replace(year=2017) # Oh well
-                        else:
-                            raise v
-                else:
-                    x = line.split('T')
-                    date = x[0].split('-')
+                # This is a complete hack, but strptime doesn't allow converting just part of a string.
+                # Basically, this tries to convert a string that WILL fail and raise an exception so that
+                # we can cut out the unconverted data.
+                #
+                # The docs for the C implementation of strptime, which this wraps, state that "The return
+                # value of the function is a pointer to the first character not processed in this function
+                # call." I.e., it is NOT an error in the C function to pass a string with characters after
+                # the date. Why it's an error in the Python implementation, and why there's no alternative
+                # API with the correct behaviour (or more accurately, why the one that fails on unconverted
+                # input itself isn't the alternative API), is beyond me.
+                try:
+                    date = datetime.strptime(line, DATE_FMT)
+                except ValueError as v:
+                    unconverted_msg = "unconverted data remains: "
+                    exception_msg = str(v)
+                    start = exception_msg.find(unconverted_msg)
+                    if start != -1:
+                        date_end = len(line) - (len(exception_msg) - len(unconverted_msg))
+                        date = datetime.strptime(line[:date_end], DATE_FMT)
+                        date = date.replace(year=2017) # Oh well
+                    else:
+                        raise v
 
                 ip = ip_pattern.search(line).group(0)
-
                 message = line.split(' ')
                 record_operations(date, ip)
 
-                #if failed_info[ip]["attempt_count"] > the threshold:
-                #    add iptables rule to block them
+                print("Failed attempt number " + str(failed_info[ip]["attempt_count"]) + " for IP " + ip)
+
+                # Block traffic from this machine
+                if failed_info[ip]["attempt_count"] == block_threshold:
+                    print("Blocking ssh traffic from " + ip)
+                    os.system("iptables -A INPUT -s " + ip + " -j DROP")
 
     except KeyboardInterrupt:
         print("\nCaught KeyboardInterrupt; exiting")
@@ -105,6 +90,11 @@ def main():
     sys.exit()
 
 if __name__ == "__main__":
+
+    if len(sys.argv) != 2:
+        print("usage: " + sys.argv[0] + " [block threshold]")
+
+    block_threshold = int(sys.argv[1])
 
     if not os.path.exists(APP_FILES_PATH):
         os.mkdir(APP_FILES_PATH)
@@ -140,19 +130,3 @@ if __name__ == "__main__":
     if distro:
         print("Distro: " + distro)
         main()
-
-    print(platform)
-    if (platform == "linux2"):
-        if os.path.exists("/var/log/secure"):
-            LOG_PATH = "/var/log/secure"
-            sys.exit(main())
-        else:
-            print('/var/log/secure does not exist. Make sure the file exists and try again later.')
-            sys.exit(1)
-    else:
-        if os.path.exists("/var/log/auth.log"):
-            LOG_PATH = "/var/log/auth.log"
-            sys.exit(main())
-        else:
-            print('/var/log/auth.log does not exist. Make sure the file exists and try again later.')
-            sys.exit(1)
